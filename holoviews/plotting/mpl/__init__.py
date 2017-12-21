@@ -26,8 +26,12 @@ from .renderer import MPLRenderer
 mpl_ge_150 = LooseVersion(mpl.__version__) >= '1.5.0'
 
 if pd:
-    from pandas.tseries import converter
-    converter.register()
+    try:
+        from pandas.plotting import register_matplotlib_converters
+        register_matplotlib_converters()
+    except ImportError:
+        from pandas.tseries import converter
+        converter.register()
 
 
 def set_style(key):
@@ -155,6 +159,7 @@ Store.register({Curve: CurvePlot,
                 # Graph Elements
                 Graph: GraphPlot,
                 TriMesh: TriMeshPlot,
+                Chord: ChordPlot,
                 Nodes: PointPlot,
                 EdgePaths: PathPlot,
 
@@ -274,6 +279,9 @@ options.Graph = Options('style', node_edgecolors='black', node_facecolors=Cycle(
                         edge_color='black', node_size=15)
 options.TriMesh = Options('style', node_edgecolors='black', node_facecolors='white',
                           edge_color='black', node_size=5, edge_linewidth=1)
+options.Chord = Options('style', node_edgecolors='black', node_facecolors=Cycle(),
+                        edge_color='black', node_size=10, edge_linewidth=0.5)
+options.Chord = Options('plot', xaxis=None, yaxis=None)
 options.Nodes = Options('style', edgecolors='black', facecolors=Cycle(),
                         marker='o', s=20**2)
 options.EdgePaths = Options('style', color='black')

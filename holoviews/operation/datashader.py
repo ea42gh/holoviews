@@ -135,7 +135,7 @@ class ResamplingOperation(Operation):
 
         xtype = 'numeric'
         if isinstance(xstart, datetime_types) or isinstance(xend, datetime_types):
-            xstart, xend = dt_to_int(xstart), dt_to_int(xend)
+            xstart, xend = dt_to_int(xstart, 'ns'), dt_to_int(xend, 'ns')
             xtype = 'datetime'
         elif not np.isfinite(xstart) and not np.isfinite(xend):
             if element.get_dimension_type(x) in datetime_types:
@@ -149,7 +149,7 @@ class ResamplingOperation(Operation):
 
         ytype = 'numeric'
         if isinstance(ystart, datetime_types) or isinstance(yend, datetime_types):
-            ystart, yend = dt_to_int(ystart), dt_to_int(yend)
+            ystart, yend = dt_to_int(ystart, 'ns'), dt_to_int(yend, 'ns')
             ytype = 'datetime'
         elif not np.isfinite(ystart) and not np.isfinite(yend):
             if element.get_dimension_type(y) in datetime_types:
@@ -387,9 +387,9 @@ class aggregate(ResamplingOperation):
         if 'x_axis' in agg.coords and 'y_axis' in agg.coords:
             agg = agg.rename({'x_axis': x, 'y_axis': y})
         if xtype == 'datetime':
-            agg[x.name] = agg[x.name].astype('datetime64[us]')
+            agg[x.name] = (agg[x.name]/10e5).astype('datetime64[us]')
         if ytype == 'datetime':
-            agg[y.name] = agg[y.name].astype('datetime64[us]')
+            agg[y.name] = (agg[y.name]/10e5).astype('datetime64[us]')
 
         if agg.ndim == 2:
             # Replacing x and y coordinates to avoid numerical precision issues
@@ -444,34 +444,49 @@ class regrid(ResamplingOperation):
         the width and height are clipped to what is available on the
         source array.""")
 
-    def _process(self, element, key=None):
-        if ds_version <= '0.5.0':
-            raise RuntimeError('regrid operation requires datashader>=0.6.0')
-
+    def _get_xarrays(self, element, coords, xtype, ytype):
         x, y = element.kdims
-        info = self._get_sampling(element, x, y)
-        (x_range, y_range), _, (width, height), (xtype, ytype) = info
-
-        coords = tuple(element.dimension_values(d, expanded=False)
-                       for d in [x, y])
-        coord_dict = {x.name: coords[0], y.name: coords[1]}
         dims = [y.name, x.name]
-        arrays = []
+        irregular = any(element.interface.irregular(element, d)
+                        for d in dims)
+        if irregular:
+            coord_dict = {x.name: (('y', 'x'), coords[0]),
+                          y.name: (('y', 'x'), coords[1])}
+        else:
+            coord_dict = {x.name: coords[0], y.name: coords[1]}
+
+        arrays = {}
         for vd in element.vdims:
             if element.interface is XArrayInterface:
                 xarr = element.data[vd.name]
                 if 'datetime' in (xtype, ytype):
                     xarr = xarr.copy()
-                if dims != xarr.dims:
+                if dims != xarr.dims and not irregular:
                     xarr = xarr.transpose(*dims)
+            elif irregular:
+                arr = element.dimension_values(vd, flat=False)
+                xarr = xr.DataArray(arr, coords=coord_dict, dims=['y', 'x'])
             else:
                 arr = element.dimension_values(vd, flat=False)
                 xarr = xr.DataArray(arr, coords=coord_dict, dims=dims)
             if xtype == "datetime":
-                xarr[x.name] = [dt_to_int(v) for v in xarr[x.name].values]
+                xarr[x.name] = [dt_to_int(v, 'ns') for v in xarr[x.name].values]
             if ytype == "datetime":
-                xarr[y.name] = [dt_to_int(v) for v in xarr[y.name].values]
-            arrays.append(xarr)
+                xarr[y.name] = [dt_to_int(v, 'ns') for v in xarr[y.name].values]
+            arrays[vd.name] = xarr
+        return arrays
+
+
+    def _process(self, element, key=None):
+        if ds_version <= '0.5.0':
+            raise RuntimeError('regrid operation requires datashader>=0.6.0')
+
+        x, y = element.kdims
+        coords = tuple(element.dimension_values(d, expanded=False)
+                       for d in [x, y])
+        info = self._get_sampling(element, x, y)
+        (x_range, y_range), _, (width, height), (xtype, ytype) = info
+        arrays = self._get_xarrays(element, coords, xtype, ytype)
 
         # Disable upsampling if requested
         (xstart, xend), (ystart, yend) = (x_range, y_range)
@@ -479,9 +494,9 @@ class regrid(ResamplingOperation):
         if not self.p.upsample and self.p.target is None:
             (x0, x1), (y0, y1) = element.range(0), element.range(1)
             if isinstance(x0, datetime_types):
-                x0, x1 = dt_to_int(x0), dt_to_int(x1)
+                x0, x1 = dt_to_int(x0, 'ns'), dt_to_int(x1, 'ns')
             if isinstance(y0, datetime_types):
-                y0, y1 = dt_to_int(y0), dt_to_int(y1)
+                y0, y1 = dt_to_int(y0, 'ns'), dt_to_int(y1, 'ns')
             exspan, eyspan = (x1-x0), (y1-y0)
             width = min([int((xspan/exspan) * len(coords[0])), width])
             height = min([int((yspan/eyspan) * len(coords[1])), height])
@@ -489,23 +504,24 @@ class regrid(ResamplingOperation):
         # Get expanded or bounded ranges
         cvs = ds.Canvas(plot_width=width, plot_height=height,
                         x_range=x_range, y_range=y_range)
-        regridded = []
-        for xarr in arrays:
+        regridded = {}
+        for vd, xarr in arrays.items():
             rarray = cvs.raster(xarr, upsample_method=self.p.interpolation,
                                 downsample_method=self.p.aggregator)
             if xtype == "datetime":
-                rarray[x.name] = rarray[x.name].astype('datetime64[us]')
+                rarray[x.name] = (rarray[x.name]/10e5).astype('datetime64[us]')
             if ytype == "datetime":
-                rarray[y.name] = rarray[y.name].astype('datetime64[us]')
-            regridded.append(rarray)
+                rarray[y.name] = (rarray[y.name]/10e5).astype('datetime64[us]')
+            regridded[vd] = rarray
 
-        regridded = xr.Dataset({vd.name: xarr for vd, xarr in zip(element.vdims, regridded)})
+        regridded = xr.Dataset(regridded)
         if xtype == 'datetime':
-            xstart, xend = np.array([xstart, xend]).astype('datetime64[us]')
+            xstart, xend = (np.array([xstart, xend])/10e5).astype('datetime64[us]')
         if ytype == 'datetime':
-            ystart, yend = np.array([ystart, yend]).astype('datetime64[us]')  
+            ystart, yend = (np.array([ystart, yend])/10e5).astype('datetime64[us]')
         bbox = BoundingBox(points=[(xstart, ystart), (xend, yend)])
-        return element.clone(regridded, bounds=bbox, datatype=['xarray'])
+        return element.clone(regridded, bounds=bbox,
+                             datatype=['xarray']+element.datatype)
 
 
 class trimesh_rasterize(aggregate):

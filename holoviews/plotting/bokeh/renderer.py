@@ -119,8 +119,7 @@ class BokehRenderer(Renderer):
         combining the bokeh model with another plot.
         """
         doc = curdoc() if doc is None else doc
-        if self_or_cls.theme:
-            doc.theme = self_or_cls.theme
+        doc.theme = self_or_cls.theme
         plot = super(BokehRenderer, self_or_cls).get_plot(obj, renderer)
         plot.document = doc
         return plot
@@ -150,11 +149,10 @@ class BokehRenderer(Renderer):
         tornado server (such as the notebook) and it is not on the
         default port ('localhost:8888').
         """
-        renderer = self_or_cls.instance(mode='server')
-        # If show=False and not in notebook context return document
-        if not show and not self_or_cls.notebook_context:
-            doc, _ = renderer(plot)
-            return doc
+        if not isinstance(self_or_cls, BokehRenderer) or self_or_cls.mode != 'server':
+            renderer = self_or_cls.instance(mode='server')
+        else:
+            renderer = self_or_cls
 
         def modify_doc(doc):
             renderer(plot, doc=doc)
@@ -196,7 +194,10 @@ class BokehRenderer(Renderer):
         attach the plot to the global document instance.
         """
         if not isinstance(obj, (Plot, BokehServerWidgets)):
-            renderer = self_or_cls.instance(mode='server')
+            if not isinstance(self_or_cls, BokehRenderer) or self_or_cls.mode != 'server':
+                renderer = self_or_cls.instance(mode='server')
+            else:
+                renderer = self_or_cls
             plot, _ =  renderer._validate(obj, 'auto')
         else:
             plot = obj
@@ -224,8 +225,8 @@ class BokehRenderer(Renderer):
 
         for m in model.references():
             m._document = None
-        if self.theme:
-            doc.theme = self.theme
+
+        doc.theme = self.theme
         doc.add_root(model)
 
         comm_id = plot.comm.id if plot.comm else None

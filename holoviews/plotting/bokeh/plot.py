@@ -224,6 +224,7 @@ class BokehPlot(DimensionedPlot):
         grouped_sources = groupby(sorted(data_sources, key=lambda x: x[0]), lambda x: x[0])
         shared_sources = []
         source_cols = {}
+        plots = []
         for _, group in grouped_sources:
             group = list(group)
             if len(group) > 1:
@@ -233,18 +234,23 @@ class BokehPlot(DimensionedPlot):
                 new_source = ColumnDataSource(source_data)
                 for _, plot in group:
                     renderer = plot.handles.get('glyph_renderer')
+                    for callback in plot.callbacks:
+                        callback.reset()
                     if renderer is None:
                         continue
                     elif 'data_source' in renderer.properties():
                         renderer.update(data_source=new_source)
                     else:
                         renderer.update(source=new_source)
+                    if hasattr(renderer, 'view'):
+                        renderer.view.update(source=new_source)
                     plot.handles['source'] = new_source
-                    for callback in plot.callbacks:
-                        callback.reset()
-                        callback.initialize()
+                    plots.append(plot)
                 shared_sources.append(new_source)
                 source_cols[id(new_source)] = [c for c in new_source.data]
+        for plot in plots:
+            for callback in plot.callbacks:
+                callback.initialize()
         self.handles['shared_sources'] = shared_sources
         self.handles['source_cols'] = source_cols
 
@@ -330,6 +336,9 @@ class GridPlot(CompositePlot, GenericCompositePlot):
 
           {'title': '15pt'}""")
 
+    merge_tools = param.Boolean(default=True, doc="""
+        Whether to merge all the tools into a single toolbar""")
+
     shared_xaxis = param.Boolean(default=False, doc="""
         If enabled the x-axes of the GridSpace will be drawn from the
         objects inside the Grid rather than the GridSpace dimensions.""")
@@ -337,6 +346,13 @@ class GridPlot(CompositePlot, GenericCompositePlot):
     shared_yaxis = param.Boolean(default=False, doc="""
         If enabled the x-axes of the GridSpace will be drawn from the
         objects inside the Grid rather than the GridSpace dimensions.""")
+
+    toolbar = param.ObjectSelector(default='above',
+                                   objects=["above", "below",
+                                            "left", "right", None],
+                                   doc="""
+        The toolbar location, must be one of 'above', 'below',
+        'left', 'right', None.""")
 
     xaxis = param.ObjectSelector(default=True,
                                  objects=['bottom', 'top', None, True, False], doc="""
@@ -455,7 +471,8 @@ class GridPlot(CompositePlot, GenericCompositePlot):
             else:
                 passed_plots.append(None)
 
-        plot = gridplot(plots[::-1])
+        plot = gridplot(plots[::-1], toolbar_position=self.toolbar,
+                        merge_tools=self.merge_tools)
         plot = self._make_axes(plot)
 
         title = self._get_title(self.keys[-1])
@@ -542,8 +559,18 @@ class LayoutPlot(CompositePlot, GenericLayoutPlot):
         share their Bokeh data source allowing for linked brushing
         and other linked behaviors.""")
 
+    merge_tools = param.Boolean(default=True, doc="""
+        Whether to merge all the tools into a single toolbar""")
+
     tabs = param.Boolean(default=False, doc="""
         Whether to display overlaid plots in separate panes""")
+
+    toolbar = param.ObjectSelector(default='above',
+                                   objects=["above", "below",
+                                            "left", "right", None],
+                                   doc="""
+        The toolbar location, must be one of 'above', 'below',
+        'left', 'right', None.""")
 
     def __init__(self, layout, keys=None, **params):
         super(LayoutPlot, self).__init__(layout, keys=keys, **params)
@@ -750,7 +777,9 @@ class LayoutPlot(CompositePlot, GenericLayoutPlot):
         else:
             plots = filter_toolboxes(plots)
             plots, width = pad_plots(plots)
-            layout_plot = gridplot(children=plots, width=width, **kwargs)
+            layout_plot = gridplot(children=plots, width=width,
+                                   toolbar_position=self.toolbar,
+                                   merge_tools=self.merge_tools, **kwargs)
 
         title = self._get_title(self.keys[-1])
         if title:

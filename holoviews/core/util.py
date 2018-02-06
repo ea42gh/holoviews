@@ -73,6 +73,12 @@ class Config(param.ParameterizedFunction):
        recommended that users switch this on to update any uses of
        __call__ as it will be deprecated in future.""")
 
+    image_rtol = param.Number(default=10e-6, doc="""
+      The tolerance used to enforce regular sampling for regular,
+      gridded data where regular sampling is expected. Expressed as the
+      maximal allowable sampling difference between sample
+      locations.""")
+
     def __call__(self, **params):
         self.set_param(**params)
         return self
@@ -207,6 +213,7 @@ def deephash(obj):
 if sys.version_info.major == 3:
     basestring = str
     unicode = str
+    long = int
     generator_types = (zip, range, types.GeneratorType)
 else:
     basestring = basestring
@@ -1134,10 +1141,18 @@ def find_file(folder, filename):
 
 def is_dataframe(data):
     """
-    Checks whether the supplied data is DataFrame type.
+    Checks whether the supplied data is of DataFrame type.
     """
     return((pd is not None and isinstance(data, pd.DataFrame)) or
           (dd is not None and isinstance(data, dd.DataFrame)))
+
+
+def is_series(data):
+    """
+    Checks whether the supplied data is of Series type.
+    """
+    return((pd is not None and isinstance(data, pd.Series)) or
+          (dd is not None and isinstance(data, dd.Series)))
 
 
 def get_param_values(data):
@@ -1562,7 +1577,7 @@ def dt_to_int(value, time_unit='us'):
         value = value.to_pydatetime()
     elif isinstance(value, np.datetime64):
         value = value.tolist()
-    if isinstance(value, int):
+    if isinstance(value, (int, long)):
         # Handle special case of nanosecond precision which cannot be
         # represented by python datetime
         return value * 10**-(np.log10(tscale)-3)

@@ -110,7 +110,7 @@ class DictInterface(Interface):
 
     @classmethod
     def validate(cls, dataset, vdims=True):
-        dim_types = 'key' if vdims else 'all'
+        dim_types = 'all' if vdims else 'key'
         dimensions = dataset.dimensions(dim_types, label='name')
         not_found = [d for d in dimensions if d not in dataset.data]
         if not_found:
@@ -213,7 +213,7 @@ class DictInterface(Interface):
         if np.isscalar(values):
             if not expanded:
                 return np.array([values])
-            values = np.full(len(dataset), values)
+            values = np.full(len(dataset), values, dtype=np.array(values).dtype)
         else:
             if not expanded:
                 return util.unique_array(values)

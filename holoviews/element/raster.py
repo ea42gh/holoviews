@@ -5,8 +5,9 @@ import numpy as np
 import colorsys
 import param
 
-from ..core import util
+from ..core import util, config
 from ..core.data import ImageInterface, GridInterface
+from ..core.data.interface import DataError
 from ..core import Dimension, Element2D, Overlay, Dataset
 from ..core.boundingregion import BoundingRegion, BoundingBox
 from ..core.sheetcoords import SheetCoordinateSystem, Slice
@@ -232,7 +233,7 @@ class Image(Dataset, Raster, SheetCoordinateSystem):
         The dimension description of the data held in the matrix.""")
 
     def __init__(self, data, kdims=None, vdims=None, bounds=None, extents=None,
-                 xdensity=None, ydensity=None, **params):
+                 xdensity=None, ydensity=None, rtol=None, **params):
         if isinstance(data, Image):
             bounds = bounds or data.bounds
             xdensity = xdensity or data.xdensity
@@ -243,6 +244,11 @@ class Image(Dataset, Raster, SheetCoordinateSystem):
             or (isinstance(data, np.ndarray) and data.size == 0)):
             data = np.zeros((2, 2))
         Dataset.__init__(self, data, kdims=kdims, vdims=vdims, extents=extents, **params)
+        if not self.interface.gridded:
+            raise DataError("%s type expects gridded data, %s is columnar."
+                            "To display columnar data as gridded use the HeatMap "
+                            "element or aggregate the data." %
+                            (type(self).__name__, self.interface.__name__))
 
         dim2, dim1 = self.interface.shape(self, gridded=True)[:2]
         if bounds is None:
@@ -268,8 +274,10 @@ class Image(Dataset, Raster, SheetCoordinateSystem):
                                  % (self.shape, len(self.vdims)))
 
         # Ensure coordinates are regularly sampled
-        validate_regular_sampling(self, 0)
-        validate_regular_sampling(self, 1)
+
+        rtol = config.image_rtol if rtol is None else rtol
+        validate_regular_sampling(self, 0, rtol)
+        validate_regular_sampling(self, 1, rtol)
 
 
     def __setstate__(self, state):
@@ -635,8 +643,6 @@ class QuadMesh(Dataset, Element2D):
     2D arrays for the x-/y-coordinates and grid values.
     """
 
-    datatype = param.List(default=['grid', 'xarray'])
-
     group = param.String(default="QuadMesh", constant=True)
 
     kdims = param.List(default=[Dimension('x'), Dimension('y')],
@@ -645,6 +651,15 @@ class QuadMesh(Dataset, Element2D):
     vdims = param.List(default=[Dimension('z')], bounds=(1, None))
 
     _binned = True
+
+    def __init__(self, data, kdims=None, vdims=None, **params):
+        super(QuadMesh, self).__init__(data, kdims, vdims, **params)
+        if not self.interface.gridded:
+            raise DataError("%s type expects gridded data, %s is columnar."
+                            "To display columnar data as gridded use the HeatMap "
+                            "element or aggregate the data." %
+                            (type(self).__name__, self.interface.__name__))
+
 
     def __setstate__(self, state):
         """

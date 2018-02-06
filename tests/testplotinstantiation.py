@@ -341,6 +341,15 @@ class TestMPLPlotInstantiation(ComparisonTestCase):
         self.assertIsInstance(cmap, ListedColormap)
         self.assertEqual(cmap.colors, colors)
 
+    def test_contours_categorical_color(self):
+        path = Contours([{('x', 'y'): np.random.rand(10, 2), 'z': cat}
+                     for cat in ('B', 'A', 'B')],
+                    vdims='z').opts(plot=dict(color_index='z'))
+        plot = mpl_renderer.get_plot(path)
+        artist = plot.handles['artist']
+        self.assertEqual(artist.get_array(), np.array([1, 0, 1]))
+
+
 
 class TestBokehPlotInstantiation(ComparisonTestCase):
 
@@ -1326,9 +1335,9 @@ class TestBokehPlotInstantiation(ComparisonTestCase):
         ys = box.aggregate(function=np.median).dimension_values('y')
         hover_tool = plot.handles['hover']
         self.assertEqual(src.data['y'], ys)
-        self.assertIn(plot.handles['vbar_1glyph_renderer'], hover_tool.renderers)
-        self.assertIn(plot.handles['vbar_2glyph_renderer'], hover_tool.renderers)
-        self.assertIn(plot.handles['circle_1glyph_renderer'], hover_tool.renderers)
+        self.assertIn(plot.handles['vbar_1_glyph_renderer'], hover_tool.renderers)
+        self.assertIn(plot.handles['vbar_2_glyph_renderer'], hover_tool.renderers)
+        self.assertIn(plot.handles['circle_1_glyph_renderer'], hover_tool.renderers)
 
     def test_curve_datetime64(self):
         dates = [np.datetime64(dt.datetime(2016,1,i)) for i in range(1, 11)]

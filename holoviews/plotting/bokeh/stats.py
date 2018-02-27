@@ -14,7 +14,7 @@ from .chart import AreaPlot
 from .element import (CompositeElementPlot, ColorbarPlot, LegendPlot,
                       fill_properties, line_properties)
 from .path import PolygonPlot
-from .util import rgb2hex
+from .util import rgb2hex, decode_bytes
 
 
 class DistributionPlot(AreaPlot):
@@ -277,8 +277,8 @@ class ViolinPlot(BoxWhiskerPlot):
         Allows supplying explicit bandwidth value rather than relying
         on scott or silverman method.""")
 
-    clip = param.Boolean(default=True, doc="""
-        Whether to clip the violins at the max and min of the data.""")
+    clip = param.NumericTuple(default=None, length=2, doc="""
+        A tuple of a lower and upper bound to clip the violin at.""")
 
     cut = param.Number(default=5, doc="""
         Draw the estimate to cut * bw from the extreme data points.""")
@@ -313,7 +313,7 @@ class ViolinPlot(BoxWhiskerPlot):
         vdim = el.vdims[0]
         values = el.dimension_values(vdim)
         if self.clip:
-            vdim = vdim(range=(np.nanmin(values), np.nanmax(values)))
+            vdim = vdim(range=self.clip)
             el = el.clone(vdims=[vdim])
         kde = univariate_kde(el, dimension=vdim, **kwargs)
         xs, ys = (kde.dimension_values(i) for i in range(2))
@@ -391,6 +391,7 @@ class ViolinPlot(BoxWhiskerPlot):
         data, mapping = {}, {}
         seg_data, bar_data, scatter_data = (defaultdict(list) for i in range(3))
         for i, (key, g) in enumerate(groups.items()):
+            key = decode_bytes(key)
             gkey = 'patch_%d'%i
             kde, segs, bars, scatter = self._kde_data(g, key, **kwargs)
             for k, v in segs.items():
@@ -406,7 +407,7 @@ class ViolinPlot(BoxWhiskerPlot):
 
         if seg_data:
             data['segment_1'] = {k: v if isinstance(v[0], tuple) else np.array(v)
-                                       for k, v in seg_data.items()}
+                                 for k, v in seg_data.items()}
             mapping['segment_1'] = seg_map
         if bar_data:
             data[bar_glyph+'_1'] = {k: v if isinstance(v[0], tuple) else np.array(v)

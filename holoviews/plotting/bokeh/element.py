@@ -27,7 +27,8 @@ from ..plot import GenericElementPlot, GenericOverlayPlot
 from ..util import dynamic_update, process_cmap
 from .plot import BokehPlot, TOOLS
 from .util import (mpl_to_bokeh, get_tab_title,  py2js_tickformatter,
-                   rgba_tuple, recursive_model_update, glyph_order)
+                   rgba_tuple, recursive_model_update, glyph_order,
+                   decode_bytes)
 
 property_prefixes = ['selection', 'nonselection', 'muted', 'hover']
 
@@ -573,7 +574,7 @@ class ElementPlot(BokehPlot, GenericElementPlot):
                 if streaming:
                     axis_range.trigger(k, old, new)
         elif isinstance(axis_range, FactorRange):
-            factors = list(factors)
+            factors = list(decode_bytes(factors))
             if invert: factors = factors[::-1]
             axis_range.factors = factors
 
@@ -1169,6 +1170,7 @@ class ColorbarPlot(ElementPlot):
             opts.update({opt: colors[name] for name, opt in color_opts if name in colors})
         else:
             colormapper = CategoricalColorMapper
+            factors = decode_bytes(factors)
             opts = dict(factors=factors)
             if 'NaN' in colors:
                 opts['nan_color'] = colors['NaN']

@@ -185,7 +185,10 @@ class Renderer(Exporter):
             plot_opts = self_or_cls.plot_options(obj, self_or_cls.size)
             plot = self_or_cls.plotting_class(obj)(obj, renderer=renderer,
                                                    **plot_opts)
-            plot.update(0)
+            defaults = [kd.default for kd in plot.dimensions]
+            init_key = tuple(v if d is None else d for v, d in
+                             zip(plot.keys[0], defaults))
+            plot.update(init_key)
         else:
             plot = obj
         return plot
@@ -306,7 +309,7 @@ class Renderer(Exporter):
             js, html = plot(as_script=True)
             plot_id = plot.plot_id
         else:
-            html, js = self._figure_data(plot, as_script=True, **kwargs)
+            html, js = self._figure_data(plot, fmt, as_script=True, **kwargs)
             plot_id = plot.id
             if comm and plot.comm is not None and self.comm_msg_handler:
                 msg_handler = self.comm_msg_handler.format(plot_id=plot_id)

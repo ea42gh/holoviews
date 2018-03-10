@@ -67,6 +67,13 @@ class BokehPlot(DimensionedPlot):
         The formatting string for the title of this plot, allows defining
         a label group separator and dimension labels.""")
 
+    toolbar = param.ObjectSelector(default='above',
+                                   objects=["above", "below",
+                                            "left", "right", None],
+                                   doc="""
+        The toolbar location, must be one of 'above', 'below',
+        'left', 'right', None.""")
+
     backend = 'bokeh'
 
     @property
@@ -352,13 +359,6 @@ class GridPlot(CompositePlot, GenericCompositePlot):
         If enabled the x-axes of the GridSpace will be drawn from the
         objects inside the Grid rather than the GridSpace dimensions.""")
 
-    toolbar = param.ObjectSelector(default='above',
-                                   objects=["above", "below",
-                                            "left", "right", None],
-                                   doc="""
-        The toolbar location, must be one of 'above', 'below',
-        'left', 'right', None.""")
-
     xaxis = param.ObjectSelector(default=True,
                                  objects=['bottom', 'top', None, True, False], doc="""
         Whether and where to display the xaxis, supported options are
@@ -476,7 +476,7 @@ class GridPlot(CompositePlot, GenericCompositePlot):
             else:
                 passed_plots.append(None)
 
-        plot = gridplot(plots[::-1], toolbar_position=self.toolbar,
+        plot = gridplot(plots[::-1], toolbar_location=self.toolbar,
                         merge_tools=self.merge_tools)
         plot = self._make_axes(plot)
 
@@ -569,13 +569,6 @@ class LayoutPlot(CompositePlot, GenericLayoutPlot):
 
     tabs = param.Boolean(default=False, doc="""
         Whether to display overlaid plots in separate panes""")
-
-    toolbar = param.ObjectSelector(default='above',
-                                   objects=["above", "below",
-                                            "left", "right", None],
-                                   doc="""
-        The toolbar location, must be one of 'above', 'below',
-        'left', 'right', None.""")
 
     def __init__(self, layout, keys=None, **params):
         super(LayoutPlot, self).__init__(layout, keys=keys, **params)
@@ -783,7 +776,7 @@ class LayoutPlot(CompositePlot, GenericLayoutPlot):
             plots = filter_toolboxes(plots)
             plots, width = pad_plots(plots)
             layout_plot = gridplot(children=plots, width=width,
-                                   toolbar_position=self.toolbar,
+                                   toolbar_location=self.toolbar,
                                    merge_tools=self.merge_tools, **kwargs)
 
         title = self._get_title(self.keys[-1])

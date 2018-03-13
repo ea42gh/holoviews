@@ -784,7 +784,7 @@ class ElementPlot(BokehPlot, GenericElementPlot):
 
         renderer = self.handles.get('glyph_renderer', None)
         glyph = self.handles.get('glyph', None)
-        visible = bool(element)
+        visible = element is not None
         if hasattr(renderer, 'visible'):
             renderer.visible = visible
         if hasattr(glyph, 'visible'):
@@ -1051,7 +1051,10 @@ class ColorbarPlot(ElementPlot):
 
         ncolors = None if factors is None else len(factors)
         if dim:
-            low, high = ranges.get(dim.name, element.range(dim.name))
+            if dim.name in ranges:
+                low, high = ranges.get(dim.name)
+            else:
+                low, high = element.range(dim.name)
         else:
             low, high = None, None
 

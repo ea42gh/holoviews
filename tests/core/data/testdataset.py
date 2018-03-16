@@ -887,11 +887,19 @@ class DFDatasetTest(HeterogeneousColumnTypes, ComparisonTestCase):
 
     def test_dataset_series_construct(self):
         ds = Dataset(pd.Series([1, 2, 3], name='A'))
-        self.assertEqual(ds, Dataset(([0, 1, 2], [1, 2, 3]), ['index', 'A']))
+        self.assertEqual(ds, Dataset(([0, 1, 2], [1, 2, 3]), 'index', 'A'))
+
+    def test_dataset_df_construct_autoindex(self):
+        ds = Dataset(pd.DataFrame([1, 2, 3], columns=['A'], index=[1, 2, 3]), 'test', 'A')
+        self.assertEqual(ds, Dataset(([0, 1, 2], [1, 2, 3]), 'test', 'A'))
+
+    def test_dataset_df_construct_not_autoindex(self):
+        ds = Dataset(pd.DataFrame([1, 2, 3], columns=['A'], index=[1, 2, 3]), 'index', 'A')
+        self.assertEqual(ds, Dataset(([1, 2, 3], [1, 2, 3]), 'index', 'A'))
 
     def test_dataset_single_column_construct(self):
         ds = Dataset(pd.DataFrame([1, 2, 3], columns=['A']))
-        self.assertEqual(ds, Dataset(([0, 1, 2], [1, 2, 3]), ['index', 'A']))
+        self.assertEqual(ds, Dataset(([0, 1, 2], [1, 2, 3]), 'index', 'A'))
 
     def test_dataset_extract_vdims(self):
         df = pd.DataFrame({'x': [1, 2, 3], 'y': [1, 2, 3], 'z': [1, 2, 3]},
@@ -1228,12 +1236,12 @@ class GridTests(object):
                          expanded_xs)
 
     def test_dataset_dim_vals_grid_kdims_expanded_xs(self):
-        expanded_xs = np.array([[0, 0, 0], [1, 1, 1]])
+        expanded_xs = np.array([[0, 1], [0, 1], [0, 1]])
         self.assertEqual(self.dataset_grid.dimension_values(0, flat=False),
                          expanded_xs)
 
     def test_dataset_dim_vals_grid_kdims_expanded_xs_inv(self):
-        expanded_xs = np.array([[0, 0, 0], [1, 1, 1]])
+        expanded_xs = np.array([[0, 1], [0, 1], [0, 1]])
         self.assertEqual(self.dataset_grid_inv.dimension_values(0, flat=False),
                          expanded_xs)
 
@@ -1258,16 +1266,22 @@ class GridTests(object):
                          expanded_ys)
 
     def test_dataset_dim_vals_grid_kdims_expanded_ys(self):
-        expanded_ys = np.array([[0.1, 0.2, 0.3],
-                                [0.1, 0.2, 0.3]])
+        expanded_ys = np.array([[0.1, 0.1], [0.2, 0.2], [0.3, 0.3]])
         self.assertEqual(self.dataset_grid.dimension_values(1, flat=False),
                          expanded_ys)
 
     def test_dataset_dim_vals_grid_kdims_expanded_ys_inv(self):
-        expanded_ys = np.array([[0.1, 0.2, 0.3],
-                                [0.1, 0.2, 0.3]])
+        expanded_ys = np.array([[0.1, 0.1], [0.2, 0.2], [0.3, 0.3]])
         self.assertEqual(self.dataset_grid_inv.dimension_values(1, flat=False),
                          expanded_ys)
+
+    def test_dataset_dim_vals_dimensions_match_shape(self):
+        self.assertEqual(len(set(self.dataset_grid.dimension_values(i, flat=False).shape
+                                 for i in range(3))), 1)
+
+    def test_dataset_dim_vals_dimensions_match_shape_inv(self):
+        self.assertEqual(len(set(self.dataset_grid_inv.dimension_values(i, flat=False).shape
+                                 for i in range(3))), 1)
 
     def test_dataset_dim_vals_grid_vdims_zs_flat(self):
         expanded_zs = np.array([0, 2, 4, 1, 3, 5])
@@ -1738,6 +1752,47 @@ class XArrayDatasetTest(GridDatasetTest):
         self.assertEqual(canonical.ndim, 2)
         expected = np.array([[0, 1], [2, 3], [4, 5]])
         self.assertEqual(canonical, expected)
+
+    def test_xarray_dataset_names_and_units(self):
+        import xarray as xr
+        xs = [0.1, 0.2, 0.3]
+        ys = [0, 1]
+        zs = np.array([[0, 1], [2, 3], [4, 5]])
+        da = xr.DataArray(zs, coords=[('x_dim', xs), ('y_dim', ys)], name="data_name", dims=['y_dim', 'x_dim'])
+        da.attrs['long_name'] = "data long name"
+        da.attrs['units'] = "array_unit"
+        da.x_dim.attrs['units'] = "x_unit"
+        da.y_dim.attrs['long_name'] = "y axis long name"
+        dataset = Dataset(da)
+        self.assertEqual(dataset.get_dimension("x_dim"), Dimension("x_dim", unit="x_unit"))
+        self.assertEqual(dataset.get_dimension("y_dim"), Dimension("y_dim", label="y axis long name"))
+        self.assertEqual(dataset.get_dimension("data_name"),
+                         Dimension("data_name", label="data long name", unit="array_unit"))
+
+    def test_xarray_dataset_dataarray_vs_dataset(self):
+        import xarray as xr
+        xs = [0.1, 0.2, 0.3]
+        ys = [0, 1]
+        zs = np.array([[0, 1], [2, 3], [4, 5]])
+        da = xr.DataArray(zs, coords=[('x_dim', xs), ('y_dim', ys)], name="data_name", dims=['y_dim', 'x_dim'])
+        da.attrs['long_name'] = "data long name"
+        da.attrs['units'] = "array_unit"
+        da.x_dim.attrs['units'] = "x_unit"
+        da.y_dim.attrs['long_name'] = "y axis long name"
+        ds = da.to_dataset()
+        dataset_from_da = Dataset(da)
+        dataset_from_ds = Dataset(ds)
+        self.assertEqual(dataset_from_da, dataset_from_ds)
+        # same with reversed names:
+        da_rev = xr.DataArray(zs, coords=[('x_dim', xs), ('y_dim', ys)], name="data_name", dims=['x_dim', 'y_dim'])
+        da_rev.attrs['long_name'] = "data long name"
+        da_rev.attrs['units'] = "array_unit"
+        da_rev.x_dim.attrs['units'] = "x_unit"
+        da_rev.y_dim.attrs['long_name'] = "y axis long name"
+        ds_rev = da_rev.to_dataset()
+        dataset_from_da_rev = Dataset(da_rev)
+        dataset_from_ds_rev = Dataset(ds_rev)
+        self.assertEqual(dataset_from_da_rev, dataset_from_ds_rev)
 
     def test_dataset_array_init_hm(self):
         "Tests support for arrays (homogeneous)"

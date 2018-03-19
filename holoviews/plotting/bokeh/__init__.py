@@ -14,7 +14,7 @@ from ...element import (Curve, Points, Scatter, Image, Raster, Path,
                         ErrorBars, Text, HLine, VLine, Spline, Spikes,
                         Table, ItemTable, Area, HSV, QuadMesh, VectorField,
                         Graph, Nodes, EdgePaths, Distribution, Bivariate,
-                        TriMesh, Div, Violin, Chord)
+                        TriMesh, Violin, Chord, Div)
 from ...core.options import Options, Cycle, Palette
 from ...core.util import VersionError
 

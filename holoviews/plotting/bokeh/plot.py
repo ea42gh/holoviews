@@ -7,13 +7,14 @@ import param
 from bokeh.models import (ColumnDataSource, Column, Row, Div)
 from bokeh.models.widgets import Panel, Tabs
 
-from ...core import (OrderedDict, Store, AdjointLayout, NdLayout,
+from ...core import (OrderedDict, Store, AdjointLayout, NdLayout, Layout,
                      Empty, GridSpace, HoloMap, Element, DynamicMap)
+from ...core.options import SkipRendering
 from ...core.util import basestring, wrap_tuple, unique_iterator
 from ...streams import Stream
 from ..plot import (DimensionedPlot, GenericCompositePlot, GenericLayoutPlot,
                     GenericElementPlot, GenericOverlayPlot)
-from ..util import attach_streams
+from ..util import attach_streams, displayable, collate
 from .util import (layout_padding, pad_plots, filter_toolboxes, make_axis,
                    update_shared_sources, empty_plot, decode_bytes,
                    bokeh_version)
@@ -422,8 +423,9 @@ class GridPlot(CompositePlot, GenericCompositePlot):
     def _create_subplots(self, layout, ranges):
         subplots = OrderedDict()
         frame_ranges = self.compute_ranges(layout, None, ranges)
+        keys = self.keys[:1] if self.dynamic else self.keys
         frame_ranges = OrderedDict([(key, self.compute_ranges(layout, key, frame_ranges))
-                                    for key in self.keys])
+                                    for key in keys])
         collapsed_layout = layout.clone(shared_data=False, id=layout.id)
         for i, coord in enumerate(layout.keys(full_grid=True)):
             r = i % self.rows
@@ -437,6 +439,11 @@ class GridPlot(CompositePlot, GenericCompositePlot):
                 opts = self.lookup_options(view, 'plot').options
             else:
                 vtype = None
+
+            if type(view) in (Layout, NdLayout):
+                raise SkipRendering("Cannot plot nested Layouts.")
+            if not displayable(view):
+                view = collate(view)
 
             # Create axes
             offset = self.axis_offset
@@ -612,8 +619,9 @@ class LayoutPlot(CompositePlot, GenericLayoutPlot):
         layout_count = 0
         collapsed_layout = layout.clone(shared_data=False, id=layout.id)
         frame_ranges = self.compute_ranges(layout, None, None)
+        keys = self.keys[:1] if self.dynamic else self.keys
         frame_ranges = OrderedDict([(key, self.compute_ranges(layout, key, frame_ranges))
-                                    for key in self.keys])
+                                    for key in keys])
         layout_items = layout.grid_items()
         layout_dimensions = layout.kdims if isinstance(layout, NdLayout) else None
         layout_subplots, layouts, paths = {}, {}, {}
@@ -678,6 +686,8 @@ class LayoutPlot(CompositePlot, GenericLayoutPlot):
             element = layout.get(pos, None)
             if element is None or not element.traverse(lambda x: x, [Element, Empty]):
                 continue
+            if not displayable(element):
+                element = collate(element)
 
             subplot_opts = dict(adjoined=main_plot)
             # Options common for any subplot

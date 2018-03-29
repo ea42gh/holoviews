@@ -15,6 +15,7 @@ from .chart import * # noqa (API import)
 from .chart3d import * # noqa (API import)
 from .graphs import * # noqa (API import)
 from .heatmap import * # noqa (API import)
+from .hex_tiles import * # noqa (API import)
 from .path import * # noqa (API import)
 from .plot import * # noqa (API import)
 from .raster import * # noqa (API import)
@@ -79,10 +80,6 @@ if config.style_17:
         set_style('default>1.5')
     else:
         set_style('default')
-    Cycle.default_cycles.update({'default_colors': get_color_cycle()})
-else:
-    Cycle.default_cycles['default_colors'] =  ['#30a2da', '#fc4f30', '#e5ae38',
-                                               '#6d904f', '#8b8b8b']
 
 # Define Palettes and cycles from matplotlib colormaps
 Palette.colormaps.update({cm: plt.get_cmap(cm) for cm in plt.cm.datad
@@ -185,7 +182,8 @@ Store.register({Curve: CurvePlot,
                 # Statistics elements
                 Distribution: DistributionPlot,
                 Bivariate: BivariatePlot,
-                Violin: ViolinPlot},
+                Violin: ViolinPlot,
+                HexTiles: HexTilesPlot},
                'matplotlib', style_aliases=style_aliases)
 
 
